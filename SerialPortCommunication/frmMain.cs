@@ -31,7 +31,7 @@ namespace PCComm
             comm.StopBits = cboStop.Text;
             comm.DataBits = cboData.Text;
             comm.BaudRate = cboBaud.Text;
-            comm.DisplayWindow = rtbDisplay;
+           // comm.DisplayWindow = rtbDisplay;
             comm.OpenPort();
 
             if (true == comm.isPortOpen)

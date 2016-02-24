@@ -8,11 +8,15 @@ namespace PCComm
 {
     class CommunicationManager
     {
+        
+
         #region Manager Enums
         /// <summary>
         /// enumeration to hold our transmission types
         /// </summary>
         public enum TransmissionType { Text, Hex }
+
+        public enum DirectionType { Rx,Tx }
 
         /// <summary>
         /// enumeration to hold our message types
@@ -29,7 +33,8 @@ namespace PCComm
         private string _dataBits = string.Empty;
         private string _portName = string.Empty;
         private TransmissionType _transType;
-        private RichTextBox _displayWindow;
+        private DirectionType _direction;
+        private ListView _displayWindow;
         //global manager variables
         private Color[] MessageColor = { Color.Blue, Color.Green, Color.Black, Color.Orange, Color.Red };
         private SerialPort comPort = new SerialPort();
@@ -118,10 +123,25 @@ namespace PCComm
         /// property to hold our display window
         /// value
         /// </summary>
-        public RichTextBox DisplayWindow
+        public ListView DisplayWindow
         {
             get { return _displayWindow; }
             set { _displayWindow = value; }
+        }
+
+
+
+        public DirectionType Direction
+        {
+            get
+            {
+                return _direction;
+            }
+
+            set
+            {
+                _direction = value;
+            }
         }
         #endregion
 
@@ -134,16 +154,26 @@ namespace PCComm
         /// <param name="sBits">Desired StopBits</param>
         /// <param name="dBits">Desired DataBits</param>
         /// <param name="name">Desired PortName</param>
-        public CommunicationManager(string baud, string par, string sBits, string dBits, string name, RichTextBox rtb)
+        public CommunicationManager(string baud, string par, string sBits, string dBits, string name, ListView lv)
         {
             _baudRate = baud;
             _parity = par;
             _stopBits = sBits;
             _dataBits = dBits;
             _portName = name;
-            _displayWindow = rtb;
+            _displayWindow = lv;
             //now add an event handler
             comPort.DataReceived += new SerialDataReceivedEventHandler(comPort_DataReceived);
+        }
+
+        public CommunicationManager(DirectionType direction):this()
+        {
+            
+            Direction = direction;
+        }
+        public CommunicationManager(string baud, string par, string sBits, string dBits, string name,ListView lv,DirectionType direction):this(baud,par,sBits,dBits,name,lv)
+        {
+            Direction = direction;
         }
 
         /// <summary>
@@ -169,6 +199,7 @@ namespace PCComm
             if (!(comPort.IsOpen == true))
             {
                 DisplayData(MessageType.Error, "Open Port before sending data!\n");
+                return;
             }
             switch (CurrentTransmissionType)
             {
@@ -197,7 +228,7 @@ namespace PCComm
                     }
                     finally
                     {
-                        _displayWindow.SelectAll();
+                        //_displayWindow.SelectAll();
                     }
                     break;
                 default:
@@ -275,11 +306,25 @@ namespace PCComm
         {
             _displayWindow.Invoke(new EventHandler(delegate
         {
+
+            ListViewItem lvi = new ListViewItem(_displayWindow.Items.Count.ToString("00"));
+            
+            lvi.SubItems.Add(DateTime.Now.ToString("HH:mm:ss.fff"));
+            lvi.SubItems.Add(msg);
+            lvi.ForeColor = MessageColor[(int)type];
+            _displayWindow.Items.Add(lvi);
+
+            _displayWindow.EnsureVisible(_displayWindow.Items.Count-1);
+            _displayWindow.Refresh();
+            
+            
+            /*
             _displayWindow.SelectedText = string.Empty;
             _displayWindow.SelectionFont = new Font(_displayWindow.SelectionFont, FontStyle.Bold);
             _displayWindow.SelectionColor = MessageColor[(int)type];
             _displayWindow.AppendText(msg);
             _displayWindow.ScrollToCaret();
+            */
         }));
         }
         #endregion
@@ -362,7 +407,7 @@ namespace PCComm
         /// <param name="e"></param>
         void comPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            string msg;
+            string msg="";
             //determine the mode the user selected (binary/string)
             switch (CurrentTransmissionType)
             {
@@ -371,29 +416,43 @@ namespace PCComm
                     //read data waiting in the buffer
                     msg = comPort.ReadExisting().Trim();
                     //display the data to the user
-                    if (msg.Length > 0)
-                        DisplayData(MessageType.Incoming, msg + "\n");
+                    
                     break;
                 //user chose binary
                 case TransmissionType.Hex:
                     //retrieve number of bytes in the buffer
                     int bytes = comPort.BytesToRead;
+                    //zcp
+                    if (bytes < 7)
+                        return;
                     //create a byte array to hold the awaiting data
                     byte[] comBuffer = new byte[bytes];
                     //read the data and store it
                     comPort.Read(comBuffer, 0, bytes);
                     //display the data to the user
-                    if (bytes > 0)
-                        DisplayData(MessageType.Incoming, ByteToHex(comBuffer) + "\n");
+                    
+                    msg = ByteToHex(comBuffer);
+
+                    //如果是tx模块（接电源板），则将报文原样送回
+                    if (_direction == DirectionType.Tx)
+                    {
+                        WriteData(msg);
+                    }
+                    //DisplayData(MessageType.Incoming, ByteToHex(comBuffer) + "\n");
                     break;
                 default:
                     //read data waiting in the buffer
                     msg = comPort.ReadExisting().Trim();
                     //display the data to the user
-                    if (msg.Length > 0)
-                        DisplayData(MessageType.Incoming, msg + "\n");
+                   
                     break;
             }
+
+            if (msg.Length > 0)
+                DisplayData(MessageType.Incoming, msg + "\n");
+
+            
+
         }
         #endregion
     }
